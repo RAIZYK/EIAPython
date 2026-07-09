@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<title>EIA Data Explorer</title>
+<link rel="stylesheet" href="style.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>EIA Open Data Explorer</h1>
+    <p class="subtitle">Python (Flask, прокси) + Chart.js — визуализация любого под-API EIA (coal, petroleum, natural-gas, electricity, total-energy...)</p>
+  </header>
+
+  <main>
+    <section class="panel" id="route-panel">
+      <h2>1. Выбор под-API (маршрута каталога EIA)</h2>
+      <div id="breadcrumb" class="breadcrumb"></div>
+      <div id="route-children" class="chips"></div>
+      <div id="leaf-info" class="hidden">
+        <p><b>Выбран конечный маршрут:</b> <span id="leaf-path"></span></p>
+      </div>
+    </section>
+
+    <section class="panel hidden" id="filters-panel">
+      <h2>2. Фильтры</h2>
+
+      <div class="field">
+        <label>Частота (frequency)</label>
+        <select id="frequency"></select>
+      </div>
+
+      <div class="field">
+        <label>Показатель(и) (data columns)</label>
+        <select id="data-columns" multiple size="4"></select>
+      </div>
+
+      <div id="facets-container"></div>
+
+      <div class="field range-field">
+        <label>Диапазон лет: <span id="range-label">1970 – 2025</span></label>
+        <div class="range-slider">
+          <input type="range" id="start-year" min="1970" max="2025" value="1970" />
+          <input type="range" id="end-year" min="1970" max="2025" value="2025" />
+        </div>
+      </div>
+
+      <button id="build-btn">Построить график</button>
+      <p id="status-msg"></p>
+    </section>
+
+    <section class="panel hidden" id="chart-panel">
+      <h2>3. График</h2>
+      <div class="chart-controls">
+        <label>Тип графика:
+          <select id="chart-type">
+            <option value="line">Линия</option>
+            <option value="bar">Столбцы</option>
+          </select>
+        </label>
+      </div>
+      <div id="chart-warning" class="warning-msg hidden"></div>
+      <div class="chart-wrap">
+        <canvas id="chart"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
