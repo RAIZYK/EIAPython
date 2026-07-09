@@ -1,14 +1,3 @@
-"""
-
-Запуск:
-    1) pip install -r requirements.txt
-    2) получить бесплатный ключ: https://www.eia.gov/opendata/register.php
-    3) создать файл .env рядом с app.py:
-           EIA_API_KEY=ваш_ключ
-    4) python app.py
-    5) открыть http://127.0.0.1:5000
-"""
-
 import os
 from flask import Flask, jsonify, request, send_from_directory
 import requests
@@ -20,30 +9,44 @@ try:
 except ImportError:
     pass
 
+
 EIA_API_KEY = os.environ.get("EIA_API_KEY", "")
-EIA_BASE = "https://api.eia.gov/v2"
+
+EIA_BASE_URL = "https://api.eia.gov/v2"
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 
 
-def eia_get(path: str, params: dict | None = None):
-    """Единая точка обращения к EIA API. path без ведущего/конечного слэша."""
-    if not EIA_API_KEY:
-        return {"error": "Не задан EIA_API_KEY. Создайте .env с EIA_API_KEY=..."}, 500
+def eia_get(path, params=None):
 
-    url = f"{EIA_BASE}/{path}".rstrip("/")
-    query = dict(params or {})
-    query["api_key"] = EIA_API_KEY
+
+    if EIA_API_KEY == "":
+        error_message = {"error": "Не задан EIA_API_KEY. Создайте .env с EIA_API_KEY=..."}
+        return error_message, 500
+
+    path = path.rstrip("/")
+    full_url = EIA_BASE_URL + "/" + path
+
+    if params is None:
+        request_params = {}
+    else:
+        request_params = dict(params)
+    request_params["api_key"] = EIA_API_KEY
 
     try:
-        r = requests.get(url, params=query, timeout=30)
-    except requests.RequestException as exc:
-        return {"error": f"Ошибка сети при обращении к EIA: {exc}"}, 502
+        response = requests.get(full_url, params=request_params, timeout=30)
+    except requests.RequestException as error:
+        error_message = {"error": "Ошибка сети при обращении к EIA: " + str(error)}
+        return error_message, 502
 
-    if r.status_code != 200:
-        return {"error": f"EIA вернул {r.status_code}", "detail": r.text[:2000]}, r.status_code
+    if response.status_code != 200:
+        error_message = {
+            "error": "EIA вернул код " + str(response.status_code),
+            "detail": response.text[:2000],
+        }
+        return error_message, response.status_code
 
-    return r.json(), 200
+    return response.json(), 200
 
 
 @app.route("/")
@@ -55,14 +58,15 @@ def index():
 @app.route("/api/routes/")
 @app.route("/api/routes/<path:route>")
 def api_routes(route=""):
-    data, status = eia_get(route)
-    return jsonify(data), status
+    data, status_code = eia_get(route)
+    return jsonify(data), status_code
 
 
 @app.route("/api/facet/<path:route>/<facet_id>")
 def api_facet(route, facet_id):
-    data, status = eia_get(f"{route}/facet/{facet_id}")
-    return jsonify(data), status
+    facet_path = route + "/facet/" + facet_id
+    data, status_code = eia_get(facet_path)
+    return jsonify(data), status_code
 
 
 @app.route("/api/data/<path:route>")
@@ -73,31 +77,43 @@ def api_data(route):
     if frequency:
         params["frequency"] = frequency
 
-    start = request.args.get("start")
-    end = request.args.get("end")
-    if start:
-        params["start"] = start
-    if end:
-        params["end"] = end
+    start_year = request.args.get("start")
+    end_year = request.args.get("end")
+    if start_year:
+        params["start"] = start_year
+    if end_year:
+        params["end"] = end_year
 
-    for i, col in enumerate(request.args.getlist("data")):
-        params[f"data[{i}]"] = col
+    data_columns = request.args.getlist("data")
+    index = 0
+    for column_name in data_columns:
+        key = "data[" + str(index) + "]"
+        params[key] = column_name
+        index = index + 1
 
     for key in request.args.keys():
         if key.startswith("facets."):
-
             facet_name = key.split(".", 1)[1]
-            values = request.args.get(key, "").split(",")
-            for i, v in enumerate(v for v in values if v):
-                params[f"facets[{facet_name}][{i}]"] = v
+            raw_value = request.args.get(key, "")
+            values_list = raw_value.split(",")
+
+            value_index = 0
+            for single_value in values_list:
+                if single_value == "":
+                    continue
+                param_key = "facets[" + facet_name + "][" + str(value_index) + "]"
+                params[param_key] = single_value
+                value_index = value_index + 1
 
     params["sort[0][column]"] = "period"
     params["sort[0][direction]"] = "asc"
+
     params["offset"] = request.args.get("offset", "0")
     params["length"] = request.args.get("length", "5000")
 
-    data, status = eia_get(f"{route}/data/", params)
-    return jsonify(data), status
+    data_path = route + "/data/"
+    data, status_code = eia_get(data_path, params)
+    return jsonify(data), status_code
 
 
 if __name__ == "__main__":
